@@ -205,7 +205,7 @@ public interface HeadingInterpolator {
         return closestPoint -> MathFunctions.normalizeAngle(Math.atan2(
             y - closestPoint.pose.getY(),
             x - closestPoint.pose.getX()
-        ) + Math.toRadians(180));
+        )) + Math.toRadians(180);
     }
 
     /**
