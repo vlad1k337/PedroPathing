@@ -5,17 +5,14 @@ import android.annotation.SuppressLint;
 import com.pedropathing.ftc.PoseConverter;
 import com.pedropathing.ftc.localization.constants.PinpointConstants;
 import com.pedropathing.geometry.PedroCoordinates;
-import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.pedropathing.ftc.localization.localizers.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
 import com.pedropathing.localization.Localizer;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.math.MathFunctions;
 import com.pedropathing.math.Vector;
-import com.pedropathing.util.NanoTimer;
 
 import java.util.Objects;
 
@@ -56,19 +53,22 @@ public class PinpointLocalizer implements Localizer {
     public PinpointLocalizer(HardwareMap map, PinpointConstants constants, Pose setStartPose){
 
         odo = map.get(GoBildaPinpointDriver.class,constants.hardwareMapName);
-        setOffsets(constants.forwardPodY, constants.strafePodX, constants.distanceUnit);
+        // Don't look at AS warnings, this should be like that
+        setOffsets(constants.forwardPodY, constants.strafePodX);
 
         if(constants.yawScalar.isPresent()) {
             odo.setYawScalar(constants.yawScalar.getAsDouble());
         }
 
         if(constants.customEncoderResolution.isPresent()) {
-            odo.setEncoderResolution(constants.customEncoderResolution.getAsDouble(), constants.distanceUnit);
+            // we use 4barpod, therefore it will be 4barpod
+            odo.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
         } else {
-            odo.setEncoderResolution(constants.encoderResolution);
+            odo.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
         }
 
-        odo.setEncoderDirections(constants.forwardEncoderDirection, constants.strafeEncoderDirection);
+        // hardcode of our values lol
+        odo.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.REVERSED, GoBildaPinpointDriver.EncoderDirection.FORWARD);
 
         setStartPose(setStartPose);
         totalHeading = 0;
@@ -148,7 +148,10 @@ public class PinpointLocalizer implements Localizer {
         // Thank you to GoldenElf58 of FTC Team 16657 for spotting a bug here; it was resolved by adding the turn direction.
         totalHeading += MathFunctions.getSmallestAngleDifference(currentPinpointPose.getHeading(), previousHeading) * MathFunctions.getTurnDirection(previousHeading, currentPinpointPose.getHeading());
         previousHeading = currentPinpointPose.getHeading();
-        currentVelocity = new Pose(odo.getVelX(DistanceUnit.INCH), odo.getVelY(DistanceUnit.INCH), odo.getHeadingVelocity(AngleUnit.RADIANS.getUnnormalized()));
+
+        // Pedro expects currentVelocity in inches. V1 localizer were providing DistanceUnit.INCH as a parameter
+        // We convert X and Y velocities from mm/s to inches/s
+        currentVelocity = new Pose(odo.getVelX() / 25.4, odo.getVelY() / 25.4, odo.getHeadingVelocity());
         pinpointPose = currentPinpointPose;
     }
 
@@ -194,10 +197,9 @@ public class PinpointLocalizer implements Localizer {
      * This sets the offsets and converts inches to millimeters
      * @param xOffset How far to the side from the center of the robot is the x-pod? Use positive values if it's to the left and negative if it's to the right.
      * @param yOffset How far forward from the center of the robot is the y-pod? Use positive values if it's forward and negative if it's to the back.
-     * @param unit The units that the measurements are given in
      */
-    private void setOffsets(double xOffset, double yOffset, DistanceUnit unit) {
-        odo.setOffsets(xOffset, yOffset, unit);
+    private void setOffsets(double xOffset, double yOffset) {
+        odo.setOffsets(xOffset / 25.4, yOffset / 25.4);
     }
 
     /**
